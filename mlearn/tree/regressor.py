@@ -3,7 +3,12 @@ import numpy as np
 class DecisionTreeRegressor:
     """决策树回归器 / Decision Tree Regressor"""
     
-    def __init__(self, max_depth=None, min_samples_split=2, max_features=None, ccp_alpha=0.0):
+    def __init__(self, 
+                 max_depth=None, 
+                 min_samples_split=2, 
+                 max_features=None, 
+                 min_impurity_decrease=0.0,
+                 ccp_alpha=0.0):
         """初始化决策树 / Initialize the decision tree  
         
         Args:
@@ -15,6 +20,7 @@ class DecisionTreeRegressor:
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
         self.max_features = max_features
+        self.min_impurity_decrease = min_impurity_decrease
         self.tree = None
         self.n_features = None
         self.n_samples = None
@@ -93,10 +99,10 @@ class DecisionTreeRegressor:
         feature_idxs = np.random.choice(n_features, self.max_features, replace=False)
 
         # 寻找最佳分裂 / Find the best split
-        best_feature, best_threshold = self._best_split(X[:, feature_idxs], y)
+        best_feature, best_threshold, impurity_decrease = self._best_split(X[:, feature_idxs], y)
 
         # 如果无法找到有效的分裂，返回叶节点
-        if best_feature is None or best_threshold is None:
+        if best_feature is None or best_threshold is None or impurity_decrease < self.min_impurity_decrease:
             return {'value': np.mean(y)}
 
         # 分裂数据 / Split the data
@@ -115,7 +121,7 @@ class DecisionTreeRegressor:
         # X shape: (n_samples, max_features), y shape: (n_samples,)
         m = X.shape[0]
         if m <= 1:
-            return None, None
+            return None, None, 0.0
 
         # 计算父节点的方差 / Calculate the variance of the parent node
         parent_var = np.var(y) * m
@@ -148,7 +154,9 @@ class DecisionTreeRegressor:
                     best_feature = feature
                     best_threshold = (thresholds[i] + thresholds[i - 1]) / 2
 
-        return best_feature, best_threshold
+
+        impurity_decrease = parent_var - best_var
+        return best_feature, best_threshold, impurity_decrease
 
     def _predict_tree(self, x, tree):
         """使用决策树进行单个样本的预测 / Make a prediction for a single sample using the decision tree"""
