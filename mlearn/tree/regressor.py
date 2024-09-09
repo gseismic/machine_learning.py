@@ -95,6 +95,10 @@ class DecisionTreeRegressor:
         # 寻找最佳分裂 / Find the best split
         best_feature, best_threshold = self._best_split(X[:, feature_idxs], y)
 
+        # 如果无法找到有效的分裂，返回叶节点
+        if best_feature is None or best_threshold is None:
+            return {'value': np.mean(y)}
+
         # 分裂数据 / Split the data
         left_idxs = X[:, feature_idxs[best_feature]] < best_threshold
         right_idxs = ~left_idxs
