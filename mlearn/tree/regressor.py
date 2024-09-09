@@ -33,7 +33,7 @@ class DecisionTreeRegressor:
         return self
 
     def _prune_tree(self, tree, X, y):
-        """对树进行剪枝"""
+        """对树进行剪枝 | prune"""
         if 'value' in tree:
             return tree
 
@@ -43,9 +43,7 @@ class DecisionTreeRegressor:
         tree['right'] = self._prune_tree(tree['right'], X[~left_mask], y[~left_mask])
 
         # 计算剪枝前后的代价
-        y_pred = np.where(X[:, tree['feature_idx']] < tree['threshold'],
-                          self._predict_tree_batch(X[left_mask], tree['left']),
-                          self._predict_tree_batch(X[~left_mask], tree['right']))
+        y_pred = self._predict_tree_batch(X, tree)
         error_before = self._calculate_error(y, y_pred)
         error_after = self._calculate_error(y, np.full_like(y, np.mean(y)))
 
@@ -158,3 +156,65 @@ class DecisionTreeRegressor:
             return self._predict_tree(x, tree['left'])
         else:
             return self._predict_tree(x, tree['right'])
+
+    def feature_importance(self, weighted=False):
+        """计算特征重要性 | Calculate feature importance"""
+        # 方差减少 | Variance reduction
+        if self.tree is None:
+            raise ValueError("The model is not trained, please call the fit method first.")
+        
+        importance = np.zeros(self.n_features)
+        self._feature_importance(self.tree, importance, weighted)
+        
+        # 归一化特征重要性
+        return importance / np.sum(importance)
+
+    def _feature_importance(self, node, importance, weighted=False):
+        """递归计算特征重要性 | Recursively calculate feature importance"""
+        if 'value' in node:
+            return
+        
+        feature = node['feature_idx']
+        left = node['left']
+        right = node['right']
+        
+        # 计算该节点的样本数和方差减少
+        n_samples = self._count_samples(node)
+        variance_reduction = self._calculate_variance_reduction(node)
+        
+        # 更新特征重要性
+        if weighted:
+            importance[feature] += variance_reduction * n_samples
+        else:
+            importance[feature] += variance_reduction
+        
+        # 递归处理子节点
+        self._feature_importance(left, importance, weighted)
+        self._feature_importance(right, importance, weighted)
+
+    def _count_samples(self, node):
+        """计算节点中的样本数 | Calculate the number of samples in the node"""
+        if 'value' in node:
+            return 1
+        return self._count_samples(node['left']) + self._count_samples(node['right'])
+
+    def _calculate_variance_reduction(self, node):
+        """计算节点的方差减少 | Calculate the variance reduction of the node"""
+        if 'value' in node:
+            return 0
+        
+        parent_var = np.var(self._get_node_values(node))
+        left_var = np.var(self._get_node_values(node['left']))
+        right_var = np.var(self._get_node_values(node['right']))
+        
+        n_left = self._count_samples(node['left'])
+        n_right = self._count_samples(node['right'])
+        n_total = n_left + n_right
+        
+        return parent_var - (n_left / n_total * left_var + n_right / n_total * right_var)
+
+    def _get_node_values(self, node):
+        """获取节点中的所有值 | Get all values in the node"""
+        if 'value' in node:
+            return [node['value']]
+        return self._get_node_values(node['left']) + self._get_node_values(node['right'])

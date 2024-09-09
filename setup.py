@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='mlearn', 
-    version='0.0.1', 
+    version='0.0.2', 
     packages=find_packages(),
     description='classic machine learning algorithm implementation with minimum lines of code',
     install_requires = ['numpy', 'loguru'],

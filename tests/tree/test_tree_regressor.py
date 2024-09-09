@@ -16,7 +16,7 @@ def test_tree_regressor_hello():
     y_train = np.array([0.1, 1.1, 1.0, 0.0])
 
     # 创建决策树分类器实例
-    clf = tree.DecisionTreeRegressor(max_depth=3, ccp_alpha=0.0)
+    clf = tree.DecisionTreeRegressor(max_depth=3, ccp_alpha=0.05)
 
     # 训练模型
     clf.fit(X_train, y_train)
@@ -30,6 +30,9 @@ def test_tree_regressor_hello():
 
     score = r2_score(y_true, predictions)
     print("r2_score:", score)
+    
+    importances = clf.feature_importance()
+    print("feature_importance:", importances)
 
 
 if __name__ == '__main__':

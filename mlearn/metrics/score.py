@@ -96,7 +96,21 @@ def r2_score(y_true, y_pred):
     """
     y_true = ensure_array(y_true)
     y_pred = ensure_array(y_pred)
+    
+    if len(y_true) != len(y_pred):
+        raise ValueError("y_true 和 y_pred 的长度必须相同。")
+    
+    if len(y_true) < 2:
+        raise ValueError("样本数量必须大于1。")
+
     ss_total = np.sum((y_true - np.mean(y_true)) ** 2)
     ss_residual = np.sum((y_true - y_pred) ** 2)
+    
+    if ss_total == 0:
+        if ss_residual == 0:
+            return 1.0  # 完美预测 | Perfect prediction
+        else:
+            return 0.0  # 无法计算 R^2，因为所有真实值都相同 | Cannot calculate R^2, because all real values are the same
+
     return 1 - (ss_residual / ss_total)
 

@@ -16,7 +16,7 @@ def test_tree_classifier_hello():
     y_train = np.array([0, 1, 1, 0])
 
     # 创建决策树分类器实例
-    clf = tree.DecisionTreeClassifier(max_depth=3, ccp_alpha=0.0)
+    clf = tree.DecisionTreeClassifier(max_depth=3, ccp_alpha=0.1)
 
     # 训练模型 | Train the model
     clf.fit(X_train, y_train)
