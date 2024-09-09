@@ -119,9 +119,13 @@ class DecisionTreeClassifier:
 
         # 如果子节点都是叶子节点，考虑是否剪枝
         if 'left' not in node['left'] and 'left' not in node['right']:
-            loss_current = self._node_impurity(node) * node['n_samples']
-            loss_children = (self._node_impurity(node['left']) * node['left']['n_samples'] +
-                             self._node_impurity(node['right']) * node['right']['n_samples'])
+            # loss_current = self._node_impurity(node) * node['n_samples']
+            # loss_children = (self._node_impurity(node['left']) * node['left']['n_samples'] +
+            #                  self._node_impurity(node['right']) * node['right']['n_samples'])
+            loss_current = self._calculate_gini(node['class_counts']) * node['n_samples']
+            loss_children = (self._calculate_gini(node['left']['class_counts']) * node['left']['n_samples'] +
+                             self._calculate_gini(node['right']['class_counts']) * node['right']['n_samples'])
+  
             
             if loss_current <= loss_children + self.ccp_alpha:
                 # 剪枝：将当前节点变为叶子节点
@@ -134,9 +138,9 @@ class DecisionTreeClassifier:
 
         return node
     
-    def _node_impurity(self, node):
-        """计算节点的不纯度"""
-        return node['impurity']
+    # def _node_impurity(self, node):
+    #     """计算节点的不纯度"""
+    #     return node['impurity']
     
     def _calculate_gini(self, class_counts):
         # Gini = 1 - Σ(pi^2)

@@ -8,5 +8,6 @@ from .score import (
 
 from .error import (
     mean_squared_error,
-    root_mean_squared_error
+    root_mean_squared_error,
+    log_loss
 )

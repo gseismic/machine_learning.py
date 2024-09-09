@@ -34,3 +34,9 @@ def root_mean_squared_error(y_true, y_pred):
     - rmse: float，均方根误差。
     """
     return np.sqrt(mean_squared_error(y_true, y_pred))
+
+
+def log_loss(y_true, y_pred):
+    eps = 1e-15
+    y_pred = np.clip(y_pred, eps, 1 - eps)
+    return -np.mean(y_true * np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred))

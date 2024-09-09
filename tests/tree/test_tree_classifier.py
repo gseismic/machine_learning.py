@@ -33,8 +33,8 @@ def test_tree_classifier_hello():
 
 def test_tree_classifier():
     X, y = get_dataset()
-    print("X:", X)
-    print("y:", y)
+    # print("X:", X)
+    # print("y:", y)
 
     # 创建并训练模型 | Create and train the model
     clf = tree.DecisionTreeClassifier(max_depth=3, ccp_alpha=0.0)
@@ -52,7 +52,7 @@ def test_tree_classifier():
 
 
 if __name__ == '__main__':
-    if 0:
+    if 1:
         test_tree_classifier_hello()
     if 1:
         test_tree_classifier()

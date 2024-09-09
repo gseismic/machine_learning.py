@@ -17,8 +17,10 @@ pip install git+https://github.com/gseismic/mlearn.py.git
 - [x] `tree.DecisionTreeClassifier` 决策树分类
 - [x] `tree.DecisionTreeRegressor` 决策树回归
 - [x] `metrics.r2_score/accurency_score/..` 评价指标
-- [x] `ensemble.random_forest.RandomForestClassifier` 随机森林分类
-- [x] `ensemble.random_forest.RandomForestRegressor` 随机森林回归
+- [x] `ensemble.random_forest.RandomForestClassifier`-naive-version 随机森林分类
+- [x] `ensemble.random_forest.RandomForestRegressor`-naive-version 随机森林回归
+- [x] `ensemble.gbdt.GBDTClassifier`-naive-version GBDT分类
+- [x] `ensemble.gbdt.GBDTRegressor`-naive-version GBDT回归
 - [ ] K nearest neighbors 最近邻
 - [ ] naive_bayes 朴素贝叶斯算法
 - [ ] max_entropy 最大熵算法
@@ -68,3 +70,4 @@ output:
 ## ChangeLog
 - [@2024-08-30] project created
 - [@2024-09-09] add ensemble.random_forest & test tree_regressor & tree_classifier
+- [@2024-09-10] add ensemble.gbdt & test gbdt_classifier & gbdt_regressor & metric.log_loss 
