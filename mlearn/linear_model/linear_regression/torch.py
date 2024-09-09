@@ -4,6 +4,7 @@ import torch.optim as optim
 import numpy as np
 
 class LinearRegression(nn.Module):
+
     def __init__(self, fit_intercept=True, verbose=0):
         """
         初始化线性回归模型

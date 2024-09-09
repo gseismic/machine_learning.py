@@ -1,163 +1,235 @@
 import numpy as np
+from collections import Counter
+
+"""
+算法思想:
+    1. 从根节点开始，递归地对每个节点进行分裂，直到满足停止条件。
+    2. 在每个节点，随机选择特征子集，并寻找最佳分裂特征和阈值。
+    3. 根据最佳分裂特征和阈值，将数据分裂为左右两个子节点。
+    4. 递归地对左右两个子节点进行分裂，直到满足停止条件。
+    5. 返回训练好的决策树。
+
+ Algorithm idea:
+    1. Start from the root node and recursively split each node until the stopping condition is met.
+    2. At each node, randomly select a subset of features and find the best feature and threshold for splitting.
+    3. Split the data into two child nodes based on the best feature and threshold.
+    4. Recursively split the left and right child nodes until the stopping condition is met.
+    5. Return the trained decision tree.
+"""
 
 class DecisionTreeClassifier:
-    def __init__(self, max_depth=None):
+    """决策树分类器 / Decision Tree Classifier
+    """
+    
+    def __init__(self, max_depth=None, min_samples_split=2, max_features=None, ccp_alpha=0.0):
+        """初始化决策树 / Initialize the decision tree
+        
+        Args:
+            - max_depth: int, 决策树的最大深度。None 表示无限制。| int, the maximum depth of the decision tree. None means no limit.
+            - min_samples_split: int, 分裂节点所需的最小样本数。| int, the minimum number of samples required to split a node.
+            - max_features: int, 每次分裂时考虑的最大特征数。None 表示使用所有特征。| int, the maximum number of features to consider for splitting. None means using all features.   
+        Notes:
+            - 如果设置了max_features，则每次分裂时随机只考虑max_features个特征，选择特征具有`随机性` | If max_features is set, only max_features features are randomly selected for each split, with a random selection of features.
         """
-        初始化决策树分类器。
+        self.max_depth = max_depth
+        self.min_samples_split = min_samples_split
+        self.max_features = max_features
+        self.tree = None
+        self.n_classes = None # 类别数
+        self.n_features = None # 特征数 
+        self.ccp_alpha = ccp_alpha
+    
+    def fit(self, X, y):
+        """训练决策树模型 / Train the decision tree model"""
+        self.n_classes = len(np.unique(y))
+        self.n_features = X.shape[1]
+        if self.max_features is None:
+            self.max_features = self.n_features
+        self.tree = self._grow_tree(X, y)
+        if self.ccp_alpha > 0:
+            self.tree = self._prune_tree(self.tree, X, y)
+        return self
 
-        参数:
-        - max_depth: int 或 None, 决策树的最大深度。None 表示无限制。
+    def predict(self, X):
+        """使用训练好的模型进行预测 / Make predictions using the trained model"""
+        if X.ndim == 1:
+            X = X.reshape(1, -1)
+        return np.array([self._predict_tree(x, self.tree) for x in X])
+
+    def feature_importance(self):
+        """计算特征重要性/ Calculate feature importance
+        
+        Returns:
+            - importance: numpy.ndarray, shape (n_features,), 特征重要性。| numpy.ndarray, shape (n_features,), feature importance.
         """
-        self.max_depth = max_depth  # 最大深度
-        self.tree = None  # 存储树的结构
+        importance = np.zeros(self.n_features)
+        self._feature_importance(self.tree, importance)
+        return importance / np.sum(importance)
 
-    def _gini(self, y):
+    def _feature_importance(self, node, importance):
+        if 'value' in node:
+            return
+        
+        feature_idx = node['feature_idx']
+        importance[feature_idx] += self._node_impurity_decrease(node)
+        
+        self._feature_importance(node['left'], importance)
+        self._feature_importance(node['right'], importance)
+
+    def _node_impurity_decrease(self, node):
+        """计算节点分裂导致的不纯度减少量 / Calculate the impurity reduction caused by node splitting
+        
+        Args:
+            - node: dict, 当前节点。| dict, the current node.
+        Returns:
+            - impurity_decrease: float, 不纯度减少量。| float, the impurity reduction.
         """
-        计算基尼不纯度（Gini impurity）。
+        # 如果是叶子节点，不纯度减少量为0
+        if 'value' in node:
+            return 0
 
-        参数:
-        - y: numpy.ndarray, shape (n_samples,), 样本标签。
+        # 获取父节点、左子节点和右子节点的样本数和不纯度
+        n_parent = node['n_samples']
+        n_left = node['left']['n_samples']
+        n_right = node['right']['n_samples']
 
-        返回:
-        - gini: float, 基尼不纯度。
-        """
-        # 计算各类别的概率
-        classes, counts = np.unique(y, return_counts=True)
-        probabilities = counts / counts.sum()
-        # 计算基尼不纯度
-        gini = 1 - np.sum(probabilities ** 2)
+        impurity_parent = self._calculate_gini(node['class_counts'])
+        impurity_left = self._calculate_gini(node['left']['class_counts'])
+        impurity_right = self._calculate_gini(node['right']['class_counts'])
+
+        # 计算不纯度减少量
+        impurity_decrease = (
+            impurity_parent 
+            - (n_left / n_parent) * impurity_left 
+            - (n_right / n_parent) * impurity_right
+        )
+
+        return n_parent * impurity_decrease
+
+    def _prune_tree(self, node, X, y):
+        """对树进行剪枝"""
+        if 'left' not in node:  # 叶子节点
+            return node
+
+        # 递归剪枝左右子树
+        node['left'] = self._prune_tree(node['left'], X[X[:, node['feature_idx']] < node['threshold']], 
+                                        y[X[:, node['feature_idx']] < node['threshold']])
+        node['right'] = self._prune_tree(node['right'], X[X[:, node['feature_idx']] >= node['threshold']], 
+                                         y[X[:, node['feature_idx']] >= node['threshold']])
+
+        # 如果子节点都是叶子节点，考虑是否剪枝
+        if 'left' not in node['left'] and 'left' not in node['right']:
+            loss_current = self._node_impurity(node) * node['n_samples']
+            loss_children = (self._node_impurity(node['left']) * node['left']['n_samples'] +
+                             self._node_impurity(node['right']) * node['right']['n_samples'])
+            
+            if loss_current <= loss_children + self.ccp_alpha:
+                # 剪枝：将当前节点变为叶子节点
+                return {
+                    'value': Counter(y).most_common(1)[0][0],
+                    'n_samples': node['n_samples'],
+                    'class_counts': node['class_counts'],
+                    'impurity': node['impurity']
+                }
+
+        return node
+    
+    def _node_impurity(self, node):
+        """计算节点的不纯度"""
+        return node['impurity']
+    
+    def _calculate_gini(self, class_counts):
+        # Gini = 1 - Σ(pi^2)
+        # 基尼不纯度的值范围是[0, 1-1/k] / The value range of Gini impurity is [0, 1-1/k]   
+        n_samples = sum(class_counts)
+        if n_samples == 0:
+            return 0
+        gini = 1.0 - sum((count / n_samples) ** 2 for count in class_counts)
         return gini
 
+    def _grow_tree(self, X, y, depth=0):
+        """递归生成决策树 / Recursively grow the decision tree"""
+        n_samples, n_features = X.shape
+        n_labels = len(np.unique(y))
+
+        # 检查停止条件
+        if (self.max_depth is not None and depth >= self.max_depth) or \
+           n_samples < self.min_samples_split or \
+           n_labels == 1:
+            leaf_value = Counter(y).most_common(1)[0][0]
+            return {
+                'value': leaf_value,
+                'n_samples': n_samples,
+                'class_counts': [np.sum(y == c) for c in range(self.n_classes)]
+            }
+
+        # 随机选择特征子集
+        feature_idxs = np.random.choice(n_features, self.max_features, replace=False)
+
+        # 寻找最佳分裂
+        best_feature, best_threshold = self._best_split(X[:, feature_idxs], y)
+
+        # 分裂数据
+        left_idxs = X[:, feature_idxs[best_feature]] < best_threshold
+        right_idxs = ~left_idxs
+
+        # 递归生成左右子树
+        left_tree = self._grow_tree(X[left_idxs], y[left_idxs], depth + 1)
+        right_tree = self._grow_tree(X[right_idxs], y[right_idxs], depth + 1)
+
+        # class_counts 是每个类别的样本数 / class_counts is the number of samples for each class
+        return {
+            'feature_idx': feature_idxs[best_feature],
+            'threshold': best_threshold,
+            'left': left_tree,
+            'right': right_tree,
+            'n_samples': n_samples,
+            'class_counts': [np.sum(y == c) for c in range(self.n_classes)],
+            'impurity': self._calculate_gini([np.sum(y == c) for c in range(self.n_classes)])
+        }
+        
     def _best_split(self, X, y):
-        """
-        找到最佳的分裂点。
-
-        参数:
-        - X: numpy.ndarray, shape (n_samples, n_features), 特征矩阵。
-        - y: numpy.ndarray, shape (n_samples,), 标签向量。
-
-        返回:
-        - best_idx: int, 最佳特征索引。
-        - best_thr: float, 最佳分割阈值。
-        """
-        m, n = X.shape
+        """寻找最佳分裂特征和阈值 / Find the best feature and threshold for splitting"""
+        m = X.shape[0]
         if m <= 1:
             return None, None
 
-        # 计算整体基尼不纯度
-        parent_gini = self._gini(y)
-        best_gini = 0
-        best_idx, best_thr = None, None
+        # 计算父节点的基尼不纯度 / Calculate the Gini impurity of the parent node
+        num_parent = [np.sum(y == c) for c in range(self.n_classes)]
+        best_gini = 1.0 - sum((n / m) ** 2 for n in num_parent)
+        best_feature, best_threshold = None, None
 
-        # 遍历每一个特征
-        for idx in range(n):
-            # 对当前特征进行排序
-            thresholds, classes = zip(*sorted(zip(X[:, idx], y)))
+        for feature in range(self.max_features):
+            thresholds, classes = zip(*sorted(zip(X[:, feature], y)))
+            num_left = [0] * self.n_classes
+            num_right = num_parent.copy()
 
-            # 初始化左右分支的样本数和类别计数
-            left_count = np.zeros_like(np.unique(y))
-            # 可以用来计算每个标签的出现频率
-            right_count = np.bincount(classes)
-
-            # 遍历每一个阈值
-            # 通过遍历特征的所有可能分裂点，计算每个分裂点的基尼不纯度，
-            # 并选择能够最小化基尼不纯度的分裂点，从而构建出能够有效分类的决策树。
             for i in range(1, m):
                 c = classes[i - 1]
-                left_count[c] += 1
-                right_count[c] -= 1
+                num_left[c] += 1
+                num_right[c] -= 1
 
-                # 如果当前值和下一个值相同，跳过
+                gini_left = 1.0 - sum((num_left[x] / i) ** 2 for x in range(self.n_classes))
+                gini_right = 1.0 - sum((num_right[x] / (m - i)) ** 2 for x in range(self.n_classes))
+                gini = (i * gini_left + (m - i) * gini_right) / m
+
                 if thresholds[i] == thresholds[i - 1]:
                     continue
 
-                # 计算左、右分支的基尼不纯度
-                left_gini = 1.0 - np.sum((left_count / i) ** 2)
-                right_gini = 1.0 - np.sum((right_count / (m - i)) ** 2)
-
-                # 计算加权平均基尼不纯度
-                gini = (i * left_gini + (m - i) * right_gini) / m
-
-                # 如果找到更好的分割点，更新最优分割点
-                if gini < best_gini or best_thr is None:
+                # 如果基尼不纯度小于最佳基尼不纯度，则更新最佳基尼不纯度和最佳特征、阈值 / If the Gini impurity is less than the best Gini impurity, update the best Gini impurity, best feature, and threshold 
+                if gini < best_gini:
                     best_gini = gini
-                    best_idx = idx
-                    best_thr = (thresholds[i] + thresholds[i - 1]) / 2
+                    best_feature = feature
+                    best_threshold = (thresholds[i] + thresholds[i - 1]) / 2
 
-        return best_idx, best_thr
+        return best_feature, best_threshold
 
-    def _grow_tree(self, X, y, depth=0):
-        """
-        递归地生长决策树。
+    def _predict_tree(self, x, tree):
+        """使用决策树进行单个样本的预测 / Make a prediction for a single sample using the decision tree"""
+        if 'value' in tree:
+            return tree['value']
 
-        参数:
-        - X: numpy.ndarray, shape (n_samples, n_features), 特征矩阵。
-        - y: numpy.ndarray, shape (n_samples,), 标签向量。
-        - depth: int, 当前树的深度。
-
-        返回:
-        - tree: dict, 决策树的结构。
-        """
-        num_samples_per_class = [np.sum(y == i) for i in np.unique(y)]
-        predicted_class = np.argmax(num_samples_per_class)
-
-        # 构建叶节点, 分类最多的点被选为第0级预测值
-        node = {
-            'predicted_class': predicted_class
-        }
-
-        # 检查是否达到最大深度或样本数量小于等于1
-        if depth < self.max_depth and len(np.unique(y)) > 1:
-            # 找到最佳分割
-            idx, thr = self._best_split(X, y)
-            if idx is not None:
-                # 递归构建左右子树
-                indices_left = X[:, idx] < thr
-                X_left, y_left = X[indices_left], y[indices_left]
-                X_right, y_right = X[~indices_left], y[~indices_left]
-                node['feature_index'] = idx
-                node['threshold'] = thr
-                node['left'] = self._grow_tree(X_left, y_left, depth + 1)
-                node['right'] = self._grow_tree(X_right, y_right, depth + 1)
-
-        return node
-
-    def fit(self, X, y):
-        """
-        训练决策树模型。
-
-        参数:
-        - X: numpy.ndarray, shape (n_samples, n_features), 训练数据。
-        - y: numpy.ndarray, shape (n_samples,), 目标值。
-        """
-        self.tree = self._grow_tree(X, y)
-
-    def _predict(self, inputs):
-        """
-        递归预测样本的类别。
-
-        参数:
-        - inputs: numpy.ndarray, shape (n_features,), 单个样本特征。
-
-        返回:
-        - predicted_class: int, 预测的类别。
-        """
-        node = self.tree
-        while 'left' in node:
-            if inputs[node['feature_index']] < node['threshold']:
-                node = node['left']
-            else:
-                node = node['right']
-        return node['predicted_class']
-
-    def predict(self, X):
-        """
-        预测样本类别。
-
-        参数:
-        - X: numpy.ndarray, shape (n_samples, n_features), 样本特征。
-
-        返回:
-        - predictions: numpy.ndarray, shape (n_samples,), 预测的类别。
-        """
-        return np.array([self._predict(inputs) for inputs in X])
+        if x[tree['feature_idx']] < tree['threshold']:
+            return self._predict_tree(x, tree['left'])
+        else:
+            return self._predict_tree(x, tree['right'])
